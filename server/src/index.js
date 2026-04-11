@@ -12,9 +12,15 @@ import propertyRoutes from "./routes/properties.js";
 import bookingRoutes from "./routes/bookings.js";
 import chatRoutes from "./routes/chat.js";
 
+
+
+
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT) || 5000;
-const MONGODB_URI = process.env.MONGODB_URI || "mongodb://127.0.0.1:27017/tripmate_homelyhub";
+const MONGODB_URI = mongoose.connect(process.env.MONGO_URI)
+  .then(() => console.log("MongoDB connected"))
+  .catch(err => console.log(err));
 
 const app = express();
 app.use(cors({ origin: true, credentials: true }));
@@ -39,25 +45,23 @@ app.use((err, _req, res, _next) => {
 
 async function start() {
   try {
-    await mongoose.connect(MONGODB_URI);
-    console.log("MongoDB connected:", MONGODB_URI.replace(/\/\/.*@/, "//***@"));
+    await mongoose.connect(process.env.MONGO_URI);
+    console.log("MongoDB connected");
+
     await seedDatabase();
+
     const server = app.listen(PORT, () => {
-      console.log(`Server listening on http://localhost:${PORT}`);
+      console.log(`Server running on port ${PORT}`);
     });
+
     server.on("error", (err) => {
       if (err.code === "EADDRINUSE") {
-        console.error(
-          `\nPort ${PORT} is already in use (often a previous "npm run dev" still running).\n\n` +
-            `Free the port (Windows):\n` +
-            `  netstat -ano | findstr :${PORT}\n` +
-            `  taskkill /PID <PID_from_last_column> /F\n\n` +
-            `Or use another port: set PORT=5001 in server/.env and point Vite's proxy in client/vite.config.js to that port.\n`
-        );
+        console.error(`Port ${PORT} already in use`);
         process.exit(1);
       }
       throw err;
     });
+
   } catch (e) {
     console.error("Failed to start:", e.message);
     process.exit(1);
