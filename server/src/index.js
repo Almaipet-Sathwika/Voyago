@@ -18,9 +18,6 @@ import chatRoutes from "./routes/chat.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT) || 5000;
-const MONGODB_URI = mongoose.connect(process.env.MONGO_URI)
-  .then(() => console.log("MongoDB connected"))
-  .catch(err => console.log(err));
 
 const app = express();
 app.use(cors({ origin: true, credentials: true }));
