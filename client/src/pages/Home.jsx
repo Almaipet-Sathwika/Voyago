@@ -296,13 +296,15 @@ export default function Home() {
                 description={item.description}
                 rating={item.rating}
                 imageUrl={item.imageUrl}
-                priceLabel="night"
+                priceLabel="month"
                 itemType="property"
                 itemId={item._id}
                 accent="stayora"
                 showWishlist={!!user}
                 onBookNow={() => openBook(item, "property")}
                 bookLabel="Book now"
+                isVerified={item.isVerified}
+                tags={item.tags}
               />
             ))}
           </div>

@@ -56,9 +56,12 @@ router.post("/", authRequired, hostOnly, (req, res, next) => {
   });
 }, async (req, res) => {
   try {
-    const { name, location, price, description, rating, imageUrl } = req.body;
+    const { name, location, price, description, rating, imageUrl, ownerName, ownerPhone, ownerEmail, isVerified, securityDeposit, tags } = req.body;
     if (!name || !location || price == null || !description || rating == null) {
       return res.status(400).json({ message: "name, location, price, description, and rating are required" });
+    }
+    if (Number(price) < 4000) {
+      return res.status(400).json({ message: "Minimum rent must be ₹4,000" });
     }
     let finalImage = imageUrl?.trim() || "";
     if (req.file) {
@@ -67,6 +70,8 @@ router.post("/", authRequired, hostOnly, (req, res, next) => {
     if (!finalImage) {
       return res.status(400).json({ message: "Provide imageUrl or upload an image file" });
     }
+    const tagArray = Array.isArray(tags) ? tags : (typeof tags === 'string' ? tags.split(',').map(t => t.trim()).filter(t => t) : ["Budget Friendly"]);
+
     const property = await Property.create({
       name,
       location,
@@ -75,6 +80,12 @@ router.post("/", authRequired, hostOnly, (req, res, next) => {
       rating: Number(rating),
       imageUrl: finalImage,
       host: req.userId,
+      ownerName: ownerName || "Voyago Verified Owner",
+      ownerPhone: ownerPhone || "+91 90000 00000",
+      ownerEmail: ownerEmail || "owner@voyago.com",
+      isVerified: isVerified !== undefined ? isVerified : true,
+      securityDeposit: Number(securityDeposit) || 0,
+      tags: tagArray,
     });
     const populated = await Property.findById(property._id).populate("host", "name email").lean();
     res.status(201).json(populated);
@@ -95,12 +106,26 @@ router.put("/:id", authRequired, hostOnly, (req, res, next) => {
     if (property.host?.toString() !== req.userId) {
       return res.status(403).json({ message: "You can only edit your own listings" });
     }
-    const { name, location, price, description, rating, imageUrl } = req.body;
+    const { name, location, price, description, rating, imageUrl, ownerName, ownerPhone, ownerEmail, isVerified, securityDeposit, tags } = req.body;
     if (name != null) property.name = name;
     if (location != null) property.location = location;
-    if (price != null) property.price = Number(price);
+    if (price != null) {
+      if (Number(price) < 4000) {
+        return res.status(400).json({ message: "Minimum rent must be ₹4,000" });
+      }
+      property.price = Number(price);
+    }
     if (description != null) property.description = description;
     if (rating != null) property.rating = Number(rating);
+    if (ownerName != null) property.ownerName = ownerName;
+    if (ownerPhone != null) property.ownerPhone = ownerPhone;
+    if (ownerEmail != null) property.ownerEmail = ownerEmail;
+    if (isVerified != null) property.isVerified = isVerified;
+    if (securityDeposit != null) property.securityDeposit = Number(securityDeposit);
+    if (tags != null) {
+      property.tags = Array.isArray(tags) ? tags : (typeof tags === 'string' ? tags.split(',').map(t => t.trim()).filter(t => t) : property.tags);
+    }
+
     if (req.file) property.imageUrl = `/uploads/${req.file.filename}`;
     else if (imageUrl?.trim()) property.imageUrl = imageUrl.trim();
     await property.save();

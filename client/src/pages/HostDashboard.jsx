@@ -17,6 +17,11 @@ export default function HostDashboard() {
     description: "",
     rating: "4.8",
     imageUrl: "",
+    ownerName: user?.name || "",
+    ownerPhone: "",
+    ownerEmail: user?.email || "",
+    securityDeposit: "",
+    tags: "Budget Friendly, Near college",
   });
   const [file, setFile] = useState(null);
 
@@ -51,6 +56,10 @@ export default function HostDashboard() {
       setFormError("Provide an image URL or choose a file to upload.");
       return;
     }
+    if (Number(form.price) < 4000) {
+      setFormError("Minimum rent must be ₹4,000.");
+      return;
+    }
     setSubmitting(true);
     try {
       const body = new FormData();
@@ -59,6 +68,12 @@ export default function HostDashboard() {
       body.append("price", form.price);
       body.append("description", form.description);
       body.append("rating", form.rating);
+      body.append("ownerName", form.ownerName);
+      body.append("ownerPhone", form.ownerPhone);
+      body.append("ownerEmail", form.ownerEmail);
+      body.append("securityDeposit", form.securityDeposit);
+      body.append("tags", form.tags);
+
       if (form.imageUrl.trim()) body.append("imageUrl", form.imageUrl.trim());
       if (file) body.append("image", file);
 
@@ -77,6 +92,11 @@ export default function HostDashboard() {
         description: "",
         rating: "4.8",
         imageUrl: "",
+        ownerName: user?.name || "",
+        ownerPhone: "",
+        ownerEmail: user?.email || "",
+        securityDeposit: "",
+        tags: "Budget Friendly, Near college",
       });
       setFile(null);
       loadMine();
@@ -140,11 +160,12 @@ export default function HostDashboard() {
             </div>
           )}
           <label className="block text-sm font-medium text-slate-700">
-            Title
+            Property Title
             <input
               required
               value={form.name}
               onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+              placeholder="e.g. Modern Studio in Downtown"
               className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 outline-none ring-orange-500 focus:ring-2"
             />
           </label>
@@ -154,16 +175,17 @@ export default function HostDashboard() {
               required
               value={form.location}
               onChange={(e) => setForm((f) => ({ ...f, location: e.target.value }))}
+              placeholder="e.g. Mumbai, Maharashtra"
               className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 outline-none ring-orange-500 focus:ring-2"
             />
           </label>
           <div className="grid gap-4 sm:grid-cols-2">
             <label className="block text-sm font-medium text-slate-700">
-              Price / night (₹)
+              Price / month (₹)
               <input
                 type="number"
                 required
-                min={0}
+                min={4000}
                 step="1"
                 value={form.price}
                 onChange={(e) => setForm((f) => ({ ...f, price: e.target.value }))}
@@ -171,52 +193,88 @@ export default function HostDashboard() {
               />
             </label>
             <label className="block text-sm font-medium text-slate-700">
-              Rating (0–5)
+              Security Deposit (₹)
               <input
                 type="number"
-                required
                 min={0}
-                max={5}
-                step="0.1"
-                value={form.rating}
-                onChange={(e) => setForm((f) => ({ ...f, rating: e.target.value }))}
+                step="1"
+                value={form.securityDeposit}
+                onChange={(e) => setForm((f) => ({ ...f, securityDeposit: e.target.value }))}
                 className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 outline-none ring-orange-500 focus:ring-2"
               />
             </label>
           </div>
+          
+          <div className="grid gap-4 sm:grid-cols-2">
+            <label className="block text-sm font-medium text-slate-700">
+              Owner Name
+              <input
+                required
+                value={form.ownerName}
+                onChange={(e) => setForm((f) => ({ ...f, ownerName: e.target.value }))}
+                className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 outline-none ring-orange-500 focus:ring-2"
+              />
+            </label>
+            <label className="block text-sm font-medium text-slate-700">
+              Owner Phone
+              <input
+                required
+                value={form.ownerPhone}
+                onChange={(e) => setForm((f) => ({ ...f, ownerPhone: e.target.value }))}
+                placeholder="+91 XXXXX XXXXX"
+                className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 outline-none ring-orange-500 focus:ring-2"
+              />
+            </label>
+          </div>
+
           <label className="block text-sm font-medium text-slate-700">
             Description
             <textarea
               required
-              rows={4}
+              rows={3}
               value={form.description}
               onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+              placeholder="Describe the property, amenities, and surroundings..."
               className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 outline-none ring-orange-500 focus:ring-2"
             />
           </label>
+
           <label className="block text-sm font-medium text-slate-700">
-            Image URL (optional if you upload a file)
+            Tags (comma separated)
             <input
-              type="url"
-              placeholder="https://images.unsplash.com/..."
-              value={form.imageUrl}
-              onChange={(e) => setForm((f) => ({ ...f, imageUrl: e.target.value }))}
+              value={form.tags}
+              onChange={(e) => setForm((f) => ({ ...f, tags: e.target.value }))}
+              placeholder="e.g. Budget Friendly, Near college, Family ready"
               className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 outline-none ring-orange-500 focus:ring-2"
             />
           </label>
-          <label className="block text-sm font-medium text-slate-700">
-            Upload image
-            <input
-              type="file"
-              accept="image/jpeg,image/png,image/gif,image/webp"
-              onChange={(e) => setFile(e.target.files?.[0] || null)}
-              className="mt-1 w-full text-sm text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-slate-900 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white"
-            />
-          </label>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+             <label className="block text-sm font-medium text-slate-700">
+              Image URL
+                <input
+                    type="url"
+                    placeholder="https://..."
+                    value={form.imageUrl}
+                    onChange={(e) => setForm((f) => ({ ...f, imageUrl: e.target.value }))}
+                    className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 outline-none ring-orange-500 focus:ring-2"
+                />
+            </label>
+            <label className="block text-sm font-medium text-slate-700">
+                Upload instead
+                <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => setFile(e.target.files?.[0] || null)}
+                    className="mt-1 w-full text-xs text-slate-600 file:mr-2 file:rounded-lg file:border-0 file:bg-slate-900 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-white"
+                />
+            </label>
+          </div>
+
           <button
             type="submit"
             disabled={submitting}
-            className="w-full rounded-xl bg-orange-600 py-3 font-semibold text-white hover:bg-orange-500 disabled:opacity-60"
+            className="w-full rounded-xl bg-orange-600 py-3 font-semibold text-white shadow-lg transition hover:bg-orange-500 disabled:opacity-60"
           >
             {submitting ? "Publishing…" : "Publish listing"}
           </button>
@@ -238,8 +296,10 @@ export default function HostDashboard() {
                 description={item.description}
                 rating={item.rating}
                 imageUrl={item.imageUrl}
-                priceLabel="night"
+                priceLabel="month"
                 accent="stayora"
+                isVerified={item.isVerified}
+                tags={item.tags}
               />
             ))}
           </div>
