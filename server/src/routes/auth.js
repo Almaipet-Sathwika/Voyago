@@ -6,12 +6,24 @@ import { authRequired } from "../middleware/auth.js";
 
 const router = Router();
 
+const SIGNUP_POINTS = 50;
+
 function signToken(user) {
   return jwt.sign(
     { userId: user._id.toString(), role: user.role },
     process.env.JWT_SECRET || "dev_secret_change_me",
     { expiresIn: "7d" }
   );
+}
+
+function safeUser(user) {
+  return {
+    id: user._id,
+    name: user.name,
+    email: user.email,
+    role: user.role,
+    points: user.points ?? 0,
+  };
 }
 
 router.post("/register", async (req, res) => {
@@ -29,12 +41,10 @@ router.post("/register", async (req, res) => {
       email: email.toLowerCase(),
       password: hashed,
       role: userRole,
+      points: SIGNUP_POINTS,          // ← welcome points
     });
     const token = signToken(user);
-    res.status(201).json({
-      token,
-      user: { id: user._id, name: user.name, email: user.email, role: user.role },
-    });
+    res.status(201).json({ token, user: safeUser(user) });
   } catch (e) {
     res.status(500).json({ message: e.message || "Registration failed" });
   }
@@ -51,10 +61,7 @@ router.post("/login", async (req, res) => {
     const ok = await bcrypt.compare(password, user.password);
     if (!ok) return res.status(401).json({ message: "Invalid credentials" });
     const token = signToken(user);
-    res.json({
-      token,
-      user: { id: user._id, name: user.name, email: user.email, role: user.role },
-    });
+    res.json({ token, user: safeUser(user) });
   } catch (e) {
     res.status(500).json({ message: e.message || "Login failed" });
   }
@@ -64,9 +71,7 @@ router.get("/me", authRequired, async (req, res) => {
   try {
     const user = await User.findById(req.userId).select("-password");
     if (!user) return res.status(404).json({ message: "User not found" });
-    res.json({
-      user: { id: user._id, name: user.name, email: user.email, role: user.role },
-    });
+    res.json({ user: safeUser(user) });
   } catch (e) {
     res.status(500).json({ message: e.message });
   }

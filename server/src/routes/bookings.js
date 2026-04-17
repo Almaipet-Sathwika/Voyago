@@ -4,11 +4,19 @@ import Booking from "../models/Booking.js";
 import Hotel from "../models/Hotel.js";
 import Flight from "../models/Flight.js";
 import Property from "../models/Property.js";
+import User from "../models/User.js";
 import { authRequired } from "../middleware/auth.js";
 
 const router = Router();
 
 const PAY_METHODS = ["upi", "qr", "card"];
+
+// Rewards Config
+const EARNED_POINTS = {
+  hotel: 80,
+  flight: 120,
+  property: 100,
+};
 
 function normalizeBookingDoc(b) {
   if (!b) return b;
@@ -78,7 +86,7 @@ router.get("/all", authRequired, async (req, res) => {
 
 router.post("/", authRequired, async (req, res) => {
   try {
-    const { itemType, itemId, checkIn, checkOut, guests, startDate, endDate, guestNames } = req.body;
+    const { itemType, itemId, checkIn, checkOut, guests, startDate, endDate, guestNames, pointsToUse = 0 } = req.body;
     const cin = checkIn ?? startDate;
     const cout = checkOut ?? endDate;
 
@@ -106,10 +114,32 @@ router.post("/", authRequired, async (req, res) => {
       return res.status(400).json({ message: "Each guest must have a name" });
     }
 
-    const computed = computeBookingTotal(itemType, item.price, cin, cout, guestCount);
-    if (computed == null) {
+    const totalPrice = computeBookingTotal(itemType, item.price, cin, cout, guestCount);
+    if (totalPrice == null) {
       return res.status(400).json({ message: "Invalid dates" });
     }
+
+    // Reward Logic
+    const user = await User.findById(req.userId);
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    const pointsUsed = Math.max(0, Number(pointsToUse) || 0);
+    if (pointsUsed > user.points) {
+      return res.status(400).json({ message: "Not enough points" });
+    }
+
+    const discountAmount = (pointsUsed / 100) * 10;
+    const maxDiscount = totalPrice * 0.2;
+    if (discountAmount > maxDiscount) {
+      return res.status(400).json({ message: "Discount exceeds max 20% limit" });
+    }
+
+    const finalPrice = Math.round((totalPrice - discountAmount) * 100) / 100;
+    const earned = EARNED_POINTS[itemType] || 0;
+
+    // Deduct points
+    user.points -= pointsUsed;
+    await user.save();
 
     const booking = await Booking.create({
       user: req.userId,
@@ -120,14 +150,21 @@ router.post("/", authRequired, async (req, res) => {
       endDate: new Date(cout),
       guests: guestCount,
       guestNames: trimmedNames,
-      totalPrice: computed,
+      totalPrice,
+      pointsUsed,
+      discountAmount,
+      finalPrice,
+      pointsEarned: earned,
       status: "booked",
       paymentStatus: "Pending",
       bookingStatus: "Active",
       paymentMethod: "",
     });
 
-    res.status(201).json(normalizeBookingDoc(booking.toObject()));
+    res.status(201).json({
+      ...normalizeBookingDoc(booking.toObject()),
+      userPoints: user.points
+    });
   } catch (e) {
     res.status(500).json({ message: e.message });
   }
@@ -156,8 +193,19 @@ router.put("/:id/pay", authRequired, async (req, res) => {
     booking.paymentStatus = "Paid";
     booking.paymentMethod = paymentMethod;
     booking.bookingStatus = "Active";
+
+    // Award earned points only after payment
+    const user = await User.findById(req.userId);
+    if (user) {
+      user.points += (booking.pointsEarned || 0);
+      await user.save();
+    }
+
     await booking.save();
-    res.json(normalizeBookingDoc(booking.toObject()));
+    res.json({
+      ...normalizeBookingDoc(booking.toObject()),
+      userPoints: user ? user.points : undefined
+    });
   } catch (e) {
     res.status(500).json({ message: e.message });
   }
@@ -173,10 +221,30 @@ router.put("/:id/cancel", authRequired, async (req, res) => {
     if (booking.status === "cancelled") {
       return res.json(normalizeBookingDoc(booking.toObject()));
     }
+
+    const wasPaid = booking.paymentStatus === "Paid";
+
     booking.status = "cancelled";
     booking.bookingStatus = "Cancelled";
     await booking.save();
-    res.json(normalizeBookingDoc(booking.toObject()));
+
+    // Refund points
+    const user = await User.findById(booking.user);
+    if (user) {
+      user.points += (booking.pointsUsed || 0);
+      // If was paid, we should ideally deduct earned points, but usually points are granted on completion
+      // Let's keep it simple: if it's cancelled, we only refund what was used.
+      // If we want to be strict, if wasPaid, user.points -= booking.pointsEarned
+      if (wasPaid) {
+        user.points = Math.max(0, user.points - (booking.pointsEarned || 0));
+      }
+      await user.save();
+    }
+
+    res.json({
+      ...normalizeBookingDoc(booking.toObject()),
+      userPoints: user ? user.points : undefined
+    });
   } catch (e) {
     res.status(500).json({ message: e.message });
   }

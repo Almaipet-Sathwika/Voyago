@@ -37,7 +37,15 @@ export default function Register() {
       <p className="mt-2 text-sm text-slate-600">
         Create a guest or host account — hosts list properties on Stayora.
       </p>
-      <form onSubmit={handleSubmit} className="mt-8 space-y-4 rounded-2xl bg-white p-6 shadow-card">
+      
+      <div className="mt-4 flex items-center gap-3 rounded-2xl bg-emerald-50 px-4 py-3 text-emerald-800 ring-1 ring-emerald-200/50">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white text-lg shadow-sm">✨</span>
+        <p className="text-xs font-semibold leading-tight">
+          Welcome bonus! Join today and get <span className="text-sm">50 reward points</span> instantly.
+        </p>
+      </div>
+
+      <form onSubmit={handleSubmit} className="mt-6 space-y-4 rounded-2xl bg-white p-6 shadow-card">
         {error && (
           <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
             {error}
@@ -87,7 +95,7 @@ export default function Register() {
         <button
           type="submit"
           disabled={submitting}
-          className="w-full rounded-xl bg-slate-900 py-3 font-semibold text-white hover:bg-slate-800 disabled:opacity-60"
+          className="w-full rounded-xl bg-slate-900 py-3 font-semibold text-white hover:bg-slate-800 disabled:opacity-60 transition-all active:scale-[0.98]"
         >
           {submitting ? "Creating…" : "Sign up"}
         </button>

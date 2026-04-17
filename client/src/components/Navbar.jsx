@@ -57,6 +57,12 @@ export default function Navbar() {
 
           <div className="flex flex-wrap items-center justify-end gap-2 sm:gap-3">
             {!loading && user && (
+              <div className="mr-2 flex items-center gap-1 cursor-default rounded-full bg-slate-100 px-3 py-1.5 text-xs font-bold text-brand-ink shadow-sm" title="Your reward points">
+                <span className="text-sm">✨</span>
+                <span>{user.points || 0}</span>
+              </div>
+            )}
+            {!loading && user && (
               <NavLink
                 to="/my-bookings"
                 className={({ isActive }) =>
@@ -98,7 +104,7 @@ export default function Navbar() {
             )}
             {!loading && user && (
               <div className="flex items-center gap-2">
-                <span className="hidden max-w-[120px] truncate text-sm text-slate-600 sm:inline">
+                <span className="hidden max-w-[120px] truncate text-sm text-slate-600 sm:inline line-clamp-1">
                   {user.name}
                 </span>
                 <button

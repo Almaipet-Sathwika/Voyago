@@ -20,6 +20,10 @@ const bookingSchema = new mongoose.Schema(
       },
     },
     totalPrice: { type: Number, required: true, min: 0 },
+    pointsUsed: { type: Number, default: 0, min: 0 },
+    discountAmount: { type: Number, default: 0, min: 0 },
+    finalPrice: { type: Number, default: null },
+    pointsEarned: { type: Number, default: 0, min: 0 },
     status: {
       type: String,
       enum: ["booked", "paid", "cancelled", "pending", "confirmed"],

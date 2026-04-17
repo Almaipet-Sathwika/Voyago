@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { defaultDateRange, previewBookingTotal } from "../utils/bookingPrice.js";
 import { formatInrWithDecimals } from "../utils/formatInr.js";
+import { useAuth } from "../context/AuthContext.jsx";
 import PaymentPanel from "./PaymentPanel.jsx";
 import TicketFace from "./TicketFace.jsx";
 import { downloadBookingTicketPdf } from "../utils/downloadTicketPdf.js";
@@ -21,11 +22,13 @@ export default function BookingModal({
   onBooked,
   moduleAccent = "tripora",
 }) {
+  const { user, setUser } = useAuth();
   const { checkIn: defIn, checkOut: defOut } = defaultDateRange();
   const [checkIn, setCheckIn] = useState(defIn);
   const [checkOut, setCheckOut] = useState(defOut);
   const [guests, setGuests] = useState(2);
   const [guestNames, setGuestNames] = useState(["", ""]);
+  const [pointsToUse, setPointsToUse] = useState(0);
   const [step, setStep] = useState("dates");
   const [booking, setBooking] = useState(null);
   const [error, setError] = useState("");
@@ -45,6 +48,7 @@ export default function BookingModal({
     const g = itemType === "flight" ? 1 : 2;
     setGuests(g);
     setGuestNames(Array.from({ length: g }, () => ""));
+    setPointsToUse(0);
     setStep("dates");
     setBooking(null);
     setError("");
@@ -63,6 +67,19 @@ export default function BookingModal({
     [itemType, item?.price, checkIn, checkOut, guests]
   );
 
+  const maxPointsUsable = useMemo(() => {
+    if (!totalPreview) return 0;
+    // 100 points = 10 Rs. 1 point = 0.1 Rs.
+    // Max discount = 20% of totalPreview.
+    // Max points = (0.2 * totalPreview) / 0.1 = 2 * totalPreview.
+    const maxByPrice = Math.floor(2 * totalPreview);
+    return Math.min(user?.points || 0, maxByPrice);
+  }, [totalPreview, user?.points]);
+
+  const discountPreview = useMemo(() => {
+    return (pointsToUse / 100) * 10;
+  }, [pointsToUse]);
+
   if (!open || !item) return null;
 
   function goToGuestNames() {
@@ -75,18 +92,20 @@ export default function BookingModal({
     setStep("names");
   }
 
-  async function submitBookingWithNames(e) {
-    e.preventDefault();
+  function goToRewards(e) {
+    if (e) e.preventDefault();
     setError("");
     const trimmed = guestNames.map((n) => String(n).trim());
     if (trimmed.some((n) => !n)) {
       setError("Please enter a name for each guest.");
       return;
     }
-    if (trimmed.length !== guests) {
-      setError("Guest names must match the number of guests.");
-      return;
-    }
+    setStep("rewards");
+  }
+
+  async function submitBooking(e) {
+    if (e) e.preventDefault();
+    setError("");
     setLoading(true);
     try {
       const res = await fetch("/api/bookings", {
@@ -101,12 +120,17 @@ export default function BookingModal({
           checkIn,
           checkOut,
           guests,
-          guestNames: trimmed,
+          guestNames: guestNames.map(n => n.trim()),
+          pointsToUse,
         }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || "Booking failed");
+      
       setBooking(data);
+      if (data.userPoints !== undefined) {
+        setUser(prev => ({ ...prev, points: data.userPoints }));
+      }
       setStep("payment");
       onBooked?.();
     } catch (err) {
@@ -131,7 +155,11 @@ export default function BookingModal({
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || "Payment failed");
+      
       setBooking(data);
+      if (data.userPoints !== undefined) {
+        setUser(prev => ({ ...prev, points: data.userPoints }));
+      }
       setStep("ticket");
       onBooked?.();
     } catch (err) {
@@ -141,14 +169,13 @@ export default function BookingModal({
     }
   }
 
-  const title =
-    step === "dates"
-      ? "Book — dates & guests"
-      : step === "names"
-        ? "Guest details"
-        : step === "payment"
-          ? "Payment"
-          : "Ticket";
+  const title = {
+    dates: "Book — dates & guests",
+    names: "Guest details",
+    rewards: "Rewards & Discounts",
+    payment: "Payment",
+    ticket: "Ticket",
+  }[step];
 
   const modal = (
     <div className="fixed inset-0 z-[100] flex items-end justify-center sm:items-center sm:p-4">
@@ -231,7 +258,7 @@ export default function BookingModal({
           )}
 
           {step === "names" && (
-            <form onSubmit={submitBookingWithNames} className="space-y-4">
+            <form onSubmit={goToRewards} className="space-y-4">
               <p className="text-sm text-slate-600">
                 Enter the full name for each of the {guests} guest{guests !== 1 ? "s" : ""}.
               </p>
@@ -265,21 +292,117 @@ export default function BookingModal({
                   disabled={loading}
                   className={`flex-1 rounded-xl py-3 font-semibold text-white disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 ${primaryBtn}`}
                 >
-                  {loading ? "Saving…" : "Confirm booking"}
+                  Continue to rewards
                 </button>
               </div>
             </form>
+          )}
+
+          {step === "rewards" && (
+            <div className="space-y-6">
+              <div className="rounded-2xl bg-gradient-to-br from-brand-ink to-slate-800 p-6 text-white shadow-lg">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs font-medium uppercase tracking-wider text-slate-400">Voyago Rewards</p>
+                    <p className="mt-1 text-2xl font-bold">{user?.points || 0} Points</p>
+                  </div>
+                  <div className="rounded-full bg-white/10 p-2">
+                    <span className="text-2xl">✨</span>
+                  </div>
+                </div>
+                <div className="mt-4 border-t border-white/10 pt-4">
+                  <p className="text-sm text-slate-300">100 points = ₹10</p>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-semibold text-brand-ink">Redeem Points</h3>
+                  <button
+                    type="button"
+                    onClick={() => setPointsToUse(maxPointsUsable)}
+                    className="text-sm font-semibold text-rose-600 hover:underline"
+                  >
+                    Use Max Points
+                  </button>
+                </div>
+
+                <div className="space-y-2">
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="number"
+                      min={0}
+                      max={maxPointsUsable}
+                      value={pointsToUse}
+                      onChange={(e) => {
+                        const val = Math.min(maxPointsUsable, Math.max(0, Number(e.target.value) || 0));
+                        setPointsToUse(val);
+                      }}
+                      className="w-full rounded-xl border border-slate-200 px-4 py-3 outline-none focus:ring-2 focus:ring-rose-500"
+                    />
+                    <div className="whitespace-nowrap rounded-xl bg-slate-100 px-4 py-3 text-sm font-bold text-brand-ink">
+                      - {formatInrWithDecimals(discountPreview)}
+                    </div>
+                  </div>
+                  <p className="text-xs text-slate-500">
+                    Max usable for this booking: <span className="font-semibold">{maxPointsUsable} points</span> (20% limit)
+                  </p>
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-slate-100 bg-slate-50 p-4">
+                <div className="flex justify-between text-sm">
+                  <span className="text-slate-600">Base total</span>
+                  <span className="text-slate-900">{formatInrWithDecimals(totalPreview)}</span>
+                </div>
+                <div className="mt-1 flex justify-between text-sm text-emerald-600">
+                  <span>Points discount</span>
+                  <span>- {formatInrWithDecimals(discountPreview)}</span>
+                </div>
+                <div className="mt-3 flex justify-between border-t border-slate-200 pt-3 text-lg font-bold">
+                  <span className="text-brand-ink">Final Price</span>
+                  <span className="text-brand-ink">{formatInrWithDecimals(totalPreview - discountPreview)}</span>
+                </div>
+              </div>
+
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setStep("names")}
+                  className="flex-1 rounded-xl border border-slate-200 py-3 text-sm font-medium text-slate-600 hover:bg-slate-50"
+                >
+                  Back
+                </button>
+                <button
+                  type="button"
+                  onClick={submitBooking}
+                  disabled={loading}
+                  className={`flex-1 rounded-xl py-3 font-semibold text-white disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 ${primaryBtn}`}
+                >
+                  {loading ? "Confirming..." : "Confirm & Pay"}
+                </button>
+              </div>
+            </div>
           )}
 
           {step === "payment" && booking && (
             <div className="space-y-4">
               <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
                 <p className="text-sm font-medium text-amber-900">Booking saved</p>
-                <p className="mt-1 text-sm text-amber-800">
-                  Payment status: Pending. Choose a method below to complete checkout (simulated).
+                {booking.discountAmount > 0 && (
+                  <p className="mt-1 text-sm font-bold text-emerald-700 underline decoration-emerald-200 decoration-2 underline-offset-4">
+                    🎉 You saved {formatInrWithDecimals(booking.discountAmount)}!
+                  </p>
+                )}
+                <p className="mt-1 text-xs text-amber-800">
+                  Complete checkout below. You'll earn <span className="font-bold">+{booking.pointsEarned} points</span> after payment.
                 </p>
               </div>
-              <PaymentPanel totalPrice={booking.totalPrice} loading={loading} onPay={payNow} />
+              <PaymentPanel 
+                totalPrice={booking.finalPrice ?? booking.totalPrice} 
+                loading={loading} 
+                onPay={payNow} 
+              />
               <button
                 type="button"
                 onClick={onClose}
@@ -293,10 +416,10 @@ export default function BookingModal({
           {step === "ticket" && booking && (
             <div className="space-y-4">
               <div className="text-center">
-                <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100 text-2xl">✓</div>
+                <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100 text-2xl text-emerald-600">✓</div>
                 <p className="mt-3 font-display text-xl font-semibold text-brand-ink">Payment successful</p>
-                <p className="mt-1 text-sm text-slate-600">
-                  Payment status: <span className="font-medium text-emerald-700">Paid</span>
+                <p className="mt-1 text-sm text-emerald-600 font-medium">
+                  +{booking.pointsEarned} points earned! 🎉
                 </p>
               </div>
               <TicketFace booking={booking} />

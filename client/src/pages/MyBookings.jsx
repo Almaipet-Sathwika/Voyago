@@ -62,6 +62,7 @@ function BookingStateBadge({ bookingStatus }) {
 function PayModal({ open, onClose, booking, token, onPaid }) {
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
+  const { setUser } = useAuth();
 
   if (!open || !booking) return null;
 
@@ -79,6 +80,10 @@ function PayModal({ open, onClose, booking, token, onPaid }) {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || "Payment failed");
+      
+      if (data.userPoints !== undefined) {
+        setUser(prev => ({ ...prev, points: data.userPoints }));
+      }
       onPaid?.(normalizeClientBooking(data));
       onClose();
       window.dispatchEvent(new Event("bookings-updated"));
@@ -89,6 +94,8 @@ function PayModal({ open, onClose, booking, token, onPaid }) {
     }
   }
 
+  const priceToPay = booking.finalPrice ?? booking.totalPrice;
+
   const el = (
     <div className="fixed inset-0 z-[105] flex items-end justify-center sm:items-center sm:p-4">
       <button type="button" className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm" aria-label="Close" onClick={onClose} />
@@ -97,7 +104,7 @@ function PayModal({ open, onClose, booking, token, onPaid }) {
         <p className="mt-1 text-sm text-slate-600">{booking.itemName}</p>
         {err && <p className="mt-3 text-sm text-red-600">{err}</p>}
         <div className="mt-4">
-          <PaymentPanel totalPrice={booking.totalPrice} loading={loading} onPay={pay} />
+          <PaymentPanel totalPrice={priceToPay} loading={loading} onPay={pay} />
         </div>
         <button
           type="button"
@@ -113,7 +120,7 @@ function PayModal({ open, onClose, booking, token, onPaid }) {
 }
 
 export default function MyBookings() {
-  const { token, user, loading: authLoading } = useAuth();
+  const { token, user, setUser, loading: authLoading } = useAuth();
   const [list, setList] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -163,6 +170,10 @@ export default function MyBookings() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || "Cancel failed");
+      
+      if (data.userPoints !== undefined) {
+        setUser(prev => ({ ...prev, points: data.userPoints }));
+      }
       await load();
       window.dispatchEvent(new Event("bookings-updated"));
     } catch (e) {
@@ -199,8 +210,16 @@ export default function MyBookings() {
       />
       <TicketModal open={!!ticketBooking} onClose={() => setTicketBooking(null)} booking={ticketBooking} />
 
-      <h1 className="font-display text-3xl font-bold text-brand-ink">My bookings</h1>
-      <p className="mt-2 text-slate-600">Order history in ₹, tickets, and cancellations.</p>
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <h1 className="font-display text-3xl font-bold text-brand-ink">My bookings</h1>
+          <p className="mt-2 text-slate-600">Order history in ₹, tickets, and rewards.</p>
+        </div>
+        <div className="rounded-2xl bg-brand-ink px-4 py-3 text-white shadow-lg">
+          <p className="text-[10px] font-medium uppercase tracking-wider text-slate-400">Available Points</p>
+          <p className="text-xl font-bold leading-none mt-1">✨ {user.points || 0}</p>
+        </div>
+      </div>
 
       {error && (
         <div className="mt-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
@@ -221,6 +240,9 @@ export default function MyBookings() {
           {list.map((b) => {
             const canPay = b.bookingStatus !== "Cancelled" && b.paymentStatus === "Pending";
             const showTicket = b.paymentStatus === "Paid";
+            const hasDiscount = b.discountAmount > 0;
+            const displayPrice = b.finalPrice ?? b.totalPrice;
+
             return (
               <li
                 key={b._id}
@@ -232,7 +254,16 @@ export default function MyBookings() {
                       <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-600">
                         {voyagoModuleFromItemType(b.itemType)}
                       </span>
-                      <p className="text-xs font-medium uppercase tracking-wide text-slate-400">{b.itemType}</p>
+                      {b.pointsEarned > 0 && b.paymentStatus === "Paid" && (
+                        <span className="rounded-full bg-emerald-50 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-emerald-600">
+                          +{b.pointsEarned} Points
+                        </span>
+                      )}
+                      {b.pointsEarned > 0 && b.paymentStatus === "Pending" && (
+                        <span className="rounded-full bg-slate-50 px-2.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-slate-500">
+                          Earn {b.pointsEarned} pts
+                        </span>
+                      )}
                     </div>
                     <h2 className="mt-1 font-display text-lg font-semibold text-brand-ink">{b.itemName}</h2>
                     <p className="mt-2 text-sm text-slate-600">
@@ -246,13 +277,27 @@ export default function MyBookings() {
                       {b.guests} guest{b.guests !== 1 ? "s" : ""}
                       {b.guestNames?.length ? ` · ${b.guestNames.join(", ")}` : ""}
                     </p>
+                    {hasDiscount && (
+                      <p className="mt-2 inline-flex items-center gap-1 text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-lg">
+                        <span>🎉</span> Saved {formatInrWithDecimals(b.discountAmount)}
+                      </p>
+                    )}
                   </div>
                   <div className="text-right">
                     <div className="flex flex-wrap justify-end gap-1.5">
                       <PaymentBadge paymentStatus={b.paymentStatus} />
                       <BookingStateBadge bookingStatus={b.bookingStatus} />
                     </div>
-                    <p className="mt-2 text-lg font-bold text-brand-ink">{formatInrWithDecimals(b.totalPrice)}</p>
+                    <div className="mt-2">
+                      {hasDiscount && (
+                        <p className="text-xs text-slate-400 line-through">
+                          {formatInrWithDecimals(b.totalPrice)}
+                        </p>
+                      )}
+                      <p className="text-lg font-bold text-brand-ink">
+                        {formatInrWithDecimals(displayPrice)}
+                      </p>
+                    </div>
                   </div>
                 </div>
                 <div className="mt-4 flex flex-wrap gap-2 border-t border-slate-100 pt-4">
