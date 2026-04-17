@@ -17,8 +17,8 @@ export function authRequired(req, res, next) {
 }
 
 export function hostOnly(req, res, next) {
-  if (req.userRole !== "host") {
-    return res.status(403).json({ message: "Host access required" });
+  if (req.userRole !== "host" && req.userRole !== "admin") {
+    return res.status(403).json({ message: "Host or Admin access required" });
   }
   next();
 }

@@ -36,6 +36,7 @@ router.post("/", authRequired, hostOnly, async (req, res) => {
       description,
       rating: Number(rating),
       imageUrl,
+      host: req.userId,
     });
     res.status(201).json(hotel);
   } catch (e) {

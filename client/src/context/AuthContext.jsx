@@ -55,7 +55,8 @@ export function AuthProvider({ children }) {
       setToken,
       setUser,
       logout,
-      isHost: user?.role === "host",
+      isHost: user?.role === "host" || user?.role === "admin",
+      isAdmin: user?.role === "admin",
     }),
     [token, user, loading]
   );

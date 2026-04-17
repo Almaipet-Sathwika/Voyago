@@ -8,17 +8,12 @@ const bookingSchema = new mongoose.Schema(
     itemName: { type: String, required: true },
     startDate: { type: Date },
     endDate: { type: Date },
-    guests: { type: Number, required: true, min: 1, default: 1 },
-    guestNames: {
-      type: [String],
-      default: [],
-      validate: {
-        validator(arr) {
-          return Array.isArray(arr) && arr.length <= 50;
-        },
-        message: "Too many guest names",
-      },
-    },
+    duration: { type: String }, // For Stayora: "15 Days", "1 Month", ...
+    rooms: { type: Number, default: 1 }, // For Tripora Hotels
+    guests: { type: Number, default: 1 },
+    guestNames: { type: [String], default: [] },
+    tenantName: { type: String }, // For Stayora
+    tenantPhone: { type: String }, // For Stayora
     totalPrice: { type: Number, required: true, min: 0 },
     pointsUsed: { type: Number, default: 0, min: 0 },
     discountAmount: { type: Number, default: 0, min: 0 },

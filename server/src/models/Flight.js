@@ -8,6 +8,7 @@ const flightSchema = new mongoose.Schema(
     description: { type: String, required: true },
     rating: { type: Number, required: true, min: 0, max: 5 },
     imageUrl: { type: String, required: true },
+    host: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
   },
   { timestamps: true }
 );

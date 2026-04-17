@@ -266,17 +266,33 @@ export default function MyBookings() {
                       )}
                     </div>
                     <h2 className="mt-1 font-display text-lg font-semibold text-brand-ink">{b.itemName}</h2>
-                    <p className="mt-2 text-sm text-slate-600">
+                    <p className="mt-2 text-sm text-slate-600 font-medium">
                       {formatDate(b.startDate)}
                       {b.endDate && b.itemType !== "flight" ? ` → ${formatDate(b.endDate)}` : null}
                       {b.itemType === "flight" && b.endDate && formatDate(b.startDate) !== formatDate(b.endDate)
                         ? ` → ${formatDate(b.endDate)}`
                         : null}
                     </p>
-                    <p className="mt-1 text-sm text-slate-500">
-                      {b.guests} guest{b.guests !== 1 ? "s" : ""}
-                      {b.guestNames?.length ? ` · ${b.guestNames.join(", ")}` : ""}
-                    </p>
+                    <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-500">
+                      <span className="inline-flex items-center">
+                        👤 {b.guests} guest{b.guests !== 1 ? "s" : ""}
+                      </span>
+                      {b.rooms > 0 && (
+                        <span className="inline-flex items-center">
+                          · 🏠 {b.rooms} room{b.rooms !== 1 ? "s" : ""}
+                        </span>
+                      )}
+                      {b.duration && (
+                        <span className="inline-flex items-center text-orange-600 font-bold">
+                          · ⏳ {b.duration}
+                        </span>
+                      )}
+                    </div>
+                    {b.guestNames?.length > 0 && (
+                      <p className="mt-1 text-xs text-slate-400 italic">
+                         Names: {b.guestNames.join(", ")}
+                      </p>
+                    )}
                     {hasDiscount && (
                       <p className="mt-2 inline-flex items-center gap-1 text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-lg">
                         <span>🎉</span> Saved {formatInrWithDecimals(b.discountAmount)}

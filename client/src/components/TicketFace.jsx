@@ -17,110 +17,128 @@ function formatDate(d) {
 function PaymentPill({ status }) {
   const paid = status === "Paid";
   return (
-    <span
-      className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold tracking-wide ${
-        paid ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-900"
-      }`}
-    >
+    <span className={`inline-flex items-center rounded-full px-3 py-1 text-[10px] font-bold tracking-wide uppercase ${
+      paid ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-900"
+    }`}>
       {paid ? "Paid" : "Pending"}
     </span>
   );
 }
 
-/**
- * Shared professional ticket layout (Tailwind). Used in TicketModal and booking success step.
- */
-export default function TicketFace({ booking, className = "" }) {
+export default function TicketFace({ booking, id = "voyago-ticket-capture" }) {
   if (!booking) return null;
 
   const pay = booking.paymentStatus || (booking.status === "paid" ? "Paid" : "Pending");
-  const guestList =
-    Array.isArray(booking.guestNames) && booking.guestNames.length ? booking.guestNames.join(" · ") : "—";
   const moduleName = voyagoModuleFromItemType(booking.itemType);
-  const stayoraVisual = moduleName === "Stayora";
-
-  const headerGradient = stayoraVisual
-    ? "bg-gradient-to-r from-orange-600 via-amber-500 to-orange-500"
-    : "bg-gradient-to-r from-rose-600 via-rose-500 to-rose-400";
+  const isStayora = moduleName === "Stayora";
+  const isHotel = booking.itemType === "hotel";
+  const isFlight = booking.itemType === "flight";
 
   return (
-    <div
-      className={`overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-[0_1px_0_rgba(0,0,0,0.04),0_12px_32px_rgba(15,23,42,0.08)] ${className}`}
-    >
-      <header className={`relative px-6 py-5 text-white ${headerGradient}`}>
-        <div className="absolute inset-0 bg-[url('data:image/svg+xml,%3Csvg width=\'60\' height=\'60\' viewBox=\'0 0 60 60\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cg fill=\'none\' fill-rule=\'evenodd\'%3E%3Cg fill=\'%23ffffff\' fill-opacity=\'0.06\'%3E%3Cpath d=\'M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z\'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E')] opacity-90" />
-        <div className="relative flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-white/80">Voyago</p>
-            <h3 className="font-display text-xl font-bold tracking-tight sm:text-2xl">Voyago Booking Ticket</h3>
-            <p className="mt-0.5 text-sm text-white/90">
-              Module · <span className="font-semibold">{moduleName}</span>
-            </p>
-          </div>
-          <div className="mt-3 flex shrink-0 items-center gap-2 sm:mt-0">
-            <PaymentPill status={pay} />
-          </div>
+    <div className="w-full overflow-x-auto pb-4">
+      <div
+        id={id}
+        className="relative w-[800px] mx-auto overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl"
+        style={{ minHeight: "420px" }}
+      >
+      {/* Header with Module Accent */}
+      <header className={`flex items-center justify-between px-10 py-8 text-white ${
+        isStayora ? "bg-orange-600" : "bg-rose-600"
+      }`}>
+        <div className="flex flex-col gap-1">
+          <h1 className="font-display text-4xl font-black tracking-tighter uppercase italic">Voyago</h1>
+          <p className="text-sm font-medium opacity-80 uppercase tracking-widest">{moduleName} Booking Ticket</p>
+        </div>
+        <div className="flex flex-col items-end gap-2">
+          <PaymentPill status={pay} />
+          <p className="font-mono text-xs opacity-70">ID: {booking._id}</p>
         </div>
       </header>
 
-      <div className="h-px w-full bg-gradient-to-r from-transparent via-slate-200 to-transparent" />
+      {/* Main Content (Landscape Layout) */}
+      <div className="grid grid-cols-12 gap-0">
+        {/* Left Side: Booking & User details */}
+        <div className="col-span-8 p-10 space-y-8 border-r border-dashed border-slate-200">
+           <section>
+              <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">
+                {isFlight ? "Flight Route" : isHotel ? "Hotel Property" : "Rental Property"}
+              </h4>
+              <p className="font-display text-2xl font-bold text-brand-ink leading-tight">{booking.itemName}</p>
+              <p className="text-sm text-slate-500 mt-1 capitalize">{booking.itemType} • {booking.location || "Voyago Verified Location"}</p>
+           </section>
 
-      <div className="px-6 py-6">
-        <div className="rounded-xl border border-slate-100 bg-slate-50/80 px-4 py-3">
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Booking ID</p>
-          <p className="mt-1 break-all font-mono text-sm font-medium text-slate-900">{booking._id}</p>
+           <div className="grid grid-cols-2 gap-8">
+              <section>
+                <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Schedule</h4>
+                <div className="flex items-center gap-4 py-2">
+                  <div>
+                    <p className="text-sm font-bold text-slate-900">{formatDate(booking.startDate)}</p>
+                    <p className="text-[10px] text-slate-400 uppercase">Start Date</p>
+                  </div>
+                  <div className="h-px flex-1 bg-slate-100"></div>
+                  <div className="text-right">
+                    <p className="text-sm font-bold text-slate-900">{formatDate(booking.endDate)}</p>
+                    <p className="text-[10px] text-slate-400 uppercase">End Date</p>
+                  </div>
+                </div>
+                {booking.duration && (
+                  <p className="mt-2 inline-block rounded-lg bg-orange-100 px-3 py-1 text-xs font-bold text-orange-700 italic">
+                    ⏳ Duration: {booking.duration}
+                  </p>
+                )}
+              </section>
+
+              <section>
+                <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">
+                    {isStayora ? "Tenant Details" : "Passenger/Guest Info"}
+                </h4>
+                <div className="mt-2 mt-4">
+                  <p className="text-sm font-bold text-slate-900 line-clamp-2">
+                    {isStayora ? (booking.tenantName || "Primary Tenant") : (booking.guestNames?.join(", ") || "—")}
+                  </p>
+                  <p className="text-[10px] text-slate-400 uppercase mt-1">
+                    {isStayora ? (booking.tenantPhone || "No contact info") : `Total: ${booking.guests} Travellers`}
+                  </p>
+                </div>
+              </section>
+           </div>
         </div>
 
-        <div className="my-6 h-px bg-slate-200" />
-
-        <div className="grid gap-6 sm:grid-cols-2">
-          <section>
-            <h4 className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Trip</h4>
-            <p className="mt-2 font-display text-lg font-semibold text-slate-900">{booking.itemName}</p>
-            <p className="mt-1 text-xs capitalize text-slate-500">{booking.itemType}</p>
-          </section>
-          <section>
-            <h4 className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Schedule</h4>
-            <dl className="mt-2 space-y-2 text-sm">
-              <div className="flex justify-between gap-4 border-b border-slate-100 pb-2">
-                <dt className="text-slate-500">Start</dt>
-                <dd className="font-medium text-slate-900">{formatDate(booking.startDate)}</dd>
+        {/* Right Side: Price & Inventory (Stub Section) */}
+        <div className="col-span-4 bg-slate-50 p-10 flex flex-col justify-between">
+           <div>
+              <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4">Inventory</h4>
+              <div className="space-y-4">
+                 <div className="flex justify-between items-center text-sm border-b border-slate-200 pb-2">
+                    <span className="text-slate-500">Occupancy</span>
+                    <span className="font-bold">{booking.guests} {booking.guests === 1 ? 'Person' : 'Persons'}</span>
+                 </div>
+                 {booking.rooms > 0 && (
+                   <div className="flex justify-between items-center text-sm border-b border-slate-200 pb-2">
+                      <span className="text-slate-500">Rooms</span>
+                      <span className="font-bold">{booking.rooms}</span>
+                   </div>
+                 )}
               </div>
-              <div className="flex justify-between gap-4 border-b border-slate-100 pb-2">
-                <dt className="text-slate-500">End</dt>
-                <dd className="font-medium text-slate-900">{formatDate(booking.endDate)}</dd>
-              </div>
-            </dl>
-          </section>
-        </div>
+           </div>
 
-        <div className="my-6 h-px bg-slate-200" />
-
-        <div className="grid gap-6 sm:grid-cols-2">
-          <section>
-            <h4 className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Guests</h4>
-            <p className="mt-2 text-2xl font-bold tabular-nums text-slate-900">{booking.guests}</p>
-            <p className="text-xs text-slate-500">total guests</p>
-          </section>
-          <section>
-            <h4 className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Guest names</h4>
-            <p className="mt-2 text-sm leading-relaxed text-slate-800">{guestList}</p>
-          </section>
-        </div>
-
-        <div className="my-6 h-px bg-slate-200" />
-
-        <div className="flex flex-col items-stretch justify-between gap-4 rounded-xl bg-slate-900 px-5 py-4 text-white sm:flex-row sm:items-center">
-          <div>
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-white/60">Total</p>
-            <p className="mt-1 font-display text-2xl font-bold tracking-tight">{formatInrWithDecimals(booking.totalPrice)}</p>
-          </div>
-          <div className="text-right sm:text-left">
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-white/60">Payment</p>
-            <p className="mt-1 text-sm font-semibold">{pay}</p>
-          </div>
+           <div className="pt-8 text-right">
+              <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Final Price</h4>
+              <p className="font-display text-3xl font-black text-brand-ink">{formatInrWithDecimals(booking.totalPrice)}</p>
+              <p className="text-[10px] font-medium text-slate-500 mt-1 uppercase tracking-tighter italic">Voyago Verified Pricing</p>
+           </div>
         </div>
       </div>
+
+      {/* Perforated Line Decoration */}
+      <div className="absolute left-[66.6%] top-32 bottom-0 w-px border-l-2 border-dashed border-white/20"></div>
+
+      <footer className="bg-slate-900 px-10 py-5 text-center">
+        <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
+          Thank you for choosing Voyago • This is an electronic ticket valid for all Tripora & Stayora modules.
+        </p>
+      </footer>
     </div>
+  </div>
   );
 }

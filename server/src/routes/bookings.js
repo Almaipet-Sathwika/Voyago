@@ -39,20 +39,38 @@ function parseDay(d) {
 }
 
 /** Hotel/property: nights between check-in and check-out (min 1). Flight: price * guests. */
-function computeBookingTotal(itemType, unitPrice, checkIn, checkOut, guests) {
+function computeBookingTotal(itemType, unitPrice, { checkIn, checkOut, guests, duration, rooms }) {
   const g = Math.max(1, Number(guests) || 1);
   const price = Number(unitPrice);
+  const roomCount = Math.max(1, Number(rooms) || 1);
+
   if (itemType === "flight") {
+    // For flights, guests = number of tickets.
     return Math.round(price * g * 100) / 100;
   }
-  const d0 = parseDay(checkIn);
-  const d1 = parseDay(checkOut);
-  if (!d0 || !d1 || d1 < d0) return null;
-  const utc0 = Date.UTC(d0.getFullYear(), d0.getMonth(), d0.getDate());
-  const utc1 = Date.UTC(d1.getFullYear(), d1.getMonth(), d1.getDate());
-  const diff = Math.round((utc1 - utc0) / 86400000);
-  const nights = Math.max(1, diff);
-  return Math.round(nights * price * 100) / 100;
+
+  if (itemType === "hotel") {
+    const d0 = parseDay(checkIn);
+    const d1 = parseDay(checkOut);
+    if (!d0 || !d1 || d1 <= d0) return null;
+    const utc0 = Date.UTC(d0.getFullYear(), d0.getMonth(), d0.getDate());
+    const utc1 = Date.UTC(d1.getFullYear(), d1.getMonth(), d1.getDate());
+    const nights = Math.max(1, Math.round((utc1 - utc0) / 86400000));
+    return Math.round(price * nights * roomCount * 100) / 100;
+  }
+
+  if (itemType === "property") {
+    // Stayora rentals are duration-based, guest count does NOT affect price.
+    let multiplier = 1;
+    if (duration === "15 Days") multiplier = 0.5;
+    else if (duration === "1 Month") multiplier = 1;
+    else if (duration === "2 Months") multiplier = 2;
+    else if (duration === "3 Months") multiplier = 3;
+    else return null; 
+    return Math.round(price * multiplier * 100) / 100;
+  }
+
+  return null;
 }
 
 async function loadItem(itemType, itemId) {
@@ -73,8 +91,8 @@ router.get("/", authRequired, async (req, res) => {
 });
 
 router.get("/all", authRequired, async (req, res) => {
-  if (req.userRole !== "host") {
-    return res.status(403).json({ message: "Host only" });
+  if (req.userRole !== "host" && req.userRole !== "admin") {
+    return res.status(403).json({ message: "Host or Admin only" });
   }
   try {
     const list = await Booking.find().populate("user", "name email").sort({ createdAt: -1 }).lean();
@@ -86,58 +104,68 @@ router.get("/all", authRequired, async (req, res) => {
 
 router.post("/", authRequired, async (req, res) => {
   try {
-    const { itemType, itemId, checkIn, checkOut, guests, startDate, endDate, guestNames, pointsToUse = 0 } = req.body;
-    const cin = checkIn ?? startDate;
-    const cout = checkOut ?? endDate;
+    const { 
+      itemType, itemId, 
+      checkIn, checkOut, 
+      guests, rooms, duration, 
+      tenantName, tenantPhone,
+      guestNames, pointsToUse = 0 
+    } = req.body;
 
-    if (!itemType || !itemId || !cin || !cout) {
-      return res.status(400).json({
-        message: "itemType, itemId, checkIn, and checkOut (or startDate/endDate) are required",
-      });
+    if (!itemType || !itemId) {
+      return res.status(400).json({ message: "itemType and itemId are required" });
     }
-    if (!["hotel", "flight", "property"].includes(itemType)) {
-      return res.status(400).json({ message: "Invalid itemType" });
-    }
-
     const item = await loadItem(itemType, itemId);
     if (!item) return res.status(404).json({ message: "Listing not found" });
 
-    const guestCount = Math.max(1, Math.min(50, Number(guests) || 1));
+    let finalStart = checkIn;
+    let finalEnd = checkOut;
 
-    if (!Array.isArray(guestNames) || guestNames.length !== guestCount) {
-      return res.status(400).json({
-        message: `guestNames must be an array of exactly ${guestCount} non-empty names (one per guest)`,
-      });
-    }
-    const trimmedNames = guestNames.map((n) => String(n ?? "").trim());
-    if (trimmedNames.some((n) => !n)) {
-      return res.status(400).json({ message: "Each guest must have a name" });
+    if (itemType === "property") {
+      if (!duration) return res.status(400).json({ message: "duration is required for rentals" });
+      finalStart = finalStart || new Date().toISOString();
+      const s = new Date(finalStart);
+      const e = new Date(s);
+      if (duration === "15 Days") e.setDate(e.getDate() + 15);
+      else if (duration === "1 Month") e.setMonth(e.getMonth() + 1);
+      else if (duration === "2 Months") e.setMonth(e.getMonth() + 2);
+      else if (duration === "3 Months") e.setMonth(e.getMonth() + 3);
+      finalEnd = e.toISOString();
+    } else if (itemType === "hotel" || (itemType === "flight" && checkOut)) {
+        if (!finalStart || !finalEnd) return res.status(400).json({ message: "Dates are required" });
+    } else if (itemType === "flight") {
+        if (!finalStart) return res.status(400).json({ message: "Departure date is required" });
+        finalEnd = finalEnd || finalStart;
     }
 
-    const totalPrice = computeBookingTotal(itemType, item.price, cin, cout, guestCount);
-    if (totalPrice == null) {
-      return res.status(400).json({ message: "Invalid dates" });
+    const guestCount = itemType === "property" ? 1 : Math.max(1, Math.min(50, Number(guests) || 1));
+    const roomCount = Math.max(1, Number(rooms) || 1);
+
+    // Validation for guest names (not needed for Stayora)
+    let processedNames = [];
+    if (itemType !== "property") {
+      if (!Array.isArray(guestNames) || guestNames.length !== guestCount) {
+        return res.status(400).json({ message: `guestNames must have exactly ${guestCount} names` });
+      }
+      processedNames = guestNames.map(n => String(n || "").trim());
+      if (processedNames.some(n => !n)) return res.status(400).json({ message: "Each guest must have a name" });
     }
 
-    // Reward Logic
+    const totalPrice = computeBookingTotal(itemType, item.price, {
+      checkIn: finalStart,
+      checkOut: finalEnd,
+      guests: guestCount,
+      duration,
+      rooms: roomCount,
+    });
+    
+    if (totalPrice == null) return res.status(400).json({ message: "Invalid booking parameters" });
+
     const user = await User.findById(req.userId);
-    if (!user) return res.status(404).json({ message: "User not found" });
-
     const pointsUsed = Math.max(0, Number(pointsToUse) || 0);
-    if (pointsUsed > user.points) {
-      return res.status(400).json({ message: "Not enough points" });
-    }
-
     const discountAmount = (pointsUsed / 100) * 10;
-    const maxDiscount = totalPrice * 0.2;
-    if (discountAmount > maxDiscount) {
-      return res.status(400).json({ message: "Discount exceeds max 20% limit" });
-    }
-
     const finalPrice = Math.round((totalPrice - discountAmount) * 100) / 100;
-    const earned = EARNED_POINTS[itemType] || 0;
 
-    // Deduct points
     user.points -= pointsUsed;
     await user.save();
 
@@ -146,19 +174,19 @@ router.post("/", authRequired, async (req, res) => {
       itemType,
       itemId,
       itemName: item.name,
-      startDate: new Date(cin),
-      endDate: new Date(cout),
+      startDate: new Date(finalStart),
+      endDate: new Date(finalEnd),
+      duration,
+      rooms: roomCount,
       guests: guestCount,
-      guestNames: trimmedNames,
+      guestNames: processedNames,
+      tenantName: itemType === "property" ? (tenantName || user.name) : undefined,
+      tenantPhone: itemType === "property" ? tenantPhone : undefined,
       totalPrice,
       pointsUsed,
       discountAmount,
       finalPrice,
-      pointsEarned: earned,
-      status: "booked",
-      paymentStatus: "Pending",
-      bookingStatus: "Active",
-      paymentMethod: "",
+      pointsEarned: EARNED_POINTS[itemType] || 0,
     });
 
     res.status(201).json({

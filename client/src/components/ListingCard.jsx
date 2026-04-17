@@ -27,6 +27,7 @@ export default function ListingCard({
   accent = "tripora",
   tags = [],
   isVerified = false,
+  renderActions,
 }) {
   const img = imageSrc(imageUrl);
   const [wishOn, setWishOn] = useState(() =>
@@ -139,7 +140,11 @@ export default function ListingCard({
           </div>
         </div>
 
-        {onBookNow && (
+        {renderActions ? (
+          <div className="mt-3 flex gap-2">
+            {renderActions}
+          </div>
+        ) : onBookNow && (
           <button
             type="button"
             onClick={onBookNow}
